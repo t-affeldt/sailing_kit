@@ -1,10 +1,24 @@
-local yaw = math.random()*math.pi*2-math.pi
-wind={}
-wind.wind = vector.multiply(minetest.yaw_to_dir(yaw),10)
-wind.timer = 0
-wind.ttime = math.random()*5*60+1*60
+local get_wind
 
-minetest.register_globalstep(
+if minetest.get_modpath("climate_api") then
+	get_wind = function()
+		local MULTIPLICATOR = 2.5
+		local wind = climate_api.environment.get_wind()
+		return vector.multiply(wind, MULTIPLICATOR)
+	end
+
+else
+	local yaw = math.random()*math.pi*2-math.pi
+	wind={}
+	wind.wind = vector.multiply(minetest.yaw_to_dir(yaw),10)
+	wind.timer = 0
+	wind.ttime = math.random()*5*60+1*60
+
+	get_wind = function()
+		return wind.wind
+	end
+
+	minetest.register_globalstep(
 	function(dtime)
 		wind.timer=wind.timer+dtime
 		if wind.timer >= wind.ttime then
@@ -14,3 +28,6 @@ minetest.register_globalstep(
 			wind.ttime = wind.timer+math.random()*5*60+1*60
 		end
 	end)
+end
+
+return get_wind

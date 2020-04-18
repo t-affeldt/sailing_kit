@@ -13,7 +13,7 @@ local rad=math.rad
 local vct = vector
 
 -- constants
-local SAIL_ROT_RATE = 4	
+local SAIL_ROT_RATE = 4
 local WIND_FACTOR = 0.05
 local RUDDER_LIMIT = 30	-- degrees
 local RUDDER_TURN_RATE = rad(12)
@@ -24,7 +24,7 @@ local ROLL_FACTOR=0.1
 
 local modpath = minetest.get_modpath('sailing_kit')
 dofile(modpath ..'/regstuff.lua')
-dofile(modpath ..'/wind.lua')
+local get_wind = dofile(modpath ..'/wind.lua')
 
 local function dot(v1,v2)
 	return v1.x*v2.x+v1.y*v2.y+v1.z*v2.z
@@ -36,10 +36,6 @@ end
 
 local function minmax(v,m)
 	return min(abs(v),m)*sign(v)
-end
-
-local function get_wind()
-	return wind.wind
 end
 
 local boat_activation = function(self,std)
@@ -75,18 +71,18 @@ local destroy=function(self)
 	pos.y=pos.y+2
 	for i=1,3 do
 		minetest.add_item({x=pos.x+random()-0.5,y=pos.y,z=pos.z+random()-0.5},'default:wood')
-	end	
+	end
 	for i=1,9 do
 		minetest.add_item({x=pos.x+random()-0.5,y=pos.y,z=pos.z+random()-0.5},'farming:string')
-	end	
+	end
 end
 
 local sailstep = function(self)
-	if self.hp <= 0 then 
-		destroy(self) 
+	if self.hp <= 0 then
+		destroy(self)
 		return
 	end
-	
+
 --	local dtime = min(self.dtime,0.5)
 	local accel_y = self.object:get_acceleration().y
 	if self.mast then
@@ -100,23 +96,23 @@ local sailstep = function(self)
 		local newyaw=yaw
 		local roll = rotation.z
 		local newroll=roll
-		
+
 		local hdir = minetest.yaw_to_dir(yaw)		-- hull direction unit vector
 		local nhdir = {x=hdir.z,y=0,z=-hdir.x}		-- lateral unit vector
-		
+
 		local longit_speed = dot(vel,hdir)
 		local longit_drag = vct.multiply(hdir,longit_speed*longit_speed*LONGIT_DRAG_FACTOR*-1*sign(longit_speed))
 		local later_speed = dot(vel,nhdir)
 		local later_drag = vct.multiply(nhdir,later_speed*later_speed*LATER_DRAG_FACTOR*-1*sign(later_speed))
 		local accel = vct.add(longit_drag,later_drag)
 		local rudder_angle = self.rudder_angle
-		
+
 		local _,_,spos,sailrot = self.mast:get_attach()
-		
+
 		-- player control
 		if self.driver then
 			local plyr = minetest.get_player_by_name(self.driver)
-			if plyr then			
+			if plyr then
 				local ctrl = plyr:get_player_control()
 				-- sail
 				if self.sail_set then
@@ -135,7 +131,7 @@ local sailstep = function(self)
 					end
 					if paddleacc then accel=vct.add(accel,vct.multiply(hdir,paddleacc)) end
 				end
-				
+
 				if ctrl.jump and minetest.get_us_time()>self.sail_timer+500000 then
 					self.sail_timer = minetest.get_us_time()
 					if self.sail_set then
@@ -144,28 +140,28 @@ local sailstep = function(self)
 					else
 						self.sail_set = true
 						self.sail:set_properties({is_visible=true})
-					end					
+					end
 				end
 				-- rudder
 				if ctrl.right then
 					rudder_angle = max(self.rudder_angle-20*self.dtime,-RUDDER_LIMIT)
 				elseif ctrl.left then
 					rudder_angle = min(self.rudder_angle+20*self.dtime,RUDDER_LIMIT)
-				end	
+				end
 			end
 		end
-		
+
 		-- move rudder
 		if rudder_angle ~= self.rudder_angle then
 			self.rudder_angle = rudder_angle
 			self.rudder:set_attach(self.object,'',{x=0,y=0,z=-26},{x=0,y=self.rudder_angle,z=0})
 		end
-		if abs(self.rudder_angle)>5 then 
---			newyaw = yaw+dtime*RUDDER_TURN_RATE*longit_speed*self.rudder_angle/30 
+		if abs(self.rudder_angle)>5 then
+--			newyaw = yaw+dtime*RUDDER_TURN_RATE*longit_speed*self.rudder_angle/30
 --			newyaw = yaw+dtime*(1-1/(longit_speed*0.5+1))*self.rudder_angle/30*RUDDER_TURN_RATE
 			newyaw = yaw+self.dtime*(1-1/(abs(longit_speed)+1))*self.rudder_angle/30*RUDDER_TURN_RATE*sign(longit_speed)
 		end
-		
+
 		if self.sail_set then
 			-- get sail direction
 --			local _,_,spos,sailrot = self.mast:get_attach()
@@ -174,7 +170,7 @@ local sailstep = function(self)
 			local snormal = {x=sdir.z,y=0,z=-sdir.x}	-- rightside, dot is negative
 			-- wind force on sail
 			local wsforce =  dot(wind,snormal)
-			
+
 			-- turn sail
 			local tight = false
 			local newsailrot = sailrot.y - wsforce*SAIL_ROT_RATE*self.dtime
@@ -183,11 +179,11 @@ local sailstep = function(self)
 				tight = true
 			end
 			self.mast:set_attach(self.object,'',spos,{x=0,y=newsailrot,z=0})
-			
+
 			if tight then	-- sail exerts force on the hull
 				local forcevec = vct.multiply(snormal,wsforce*wsforce*WIND_FACTOR*sign(wsforce))
 				accel=vct.add(accel,forcevec)
-				
+
 						-- lateral pressure
 				local prsr = dot(forcevec,nhdir)
 --				newroll = prsr*rad(ROLL_FACTOR)
@@ -198,18 +194,18 @@ local sailstep = function(self)
 		else
 			newroll=0
 		end
-		
+
 		local bob = minmax(dot(accel,hdir),1)	-- vertical bobbing
-		
+
 		if self.isinliquid then
 			accel.y = accel_y+bob
 			newpitch = vel.y * rad(6)
 			self.object:set_acceleration(accel)
 		end
-		
+
 		if abs(newroll-roll)>ROLL_RATE*self.dtime then newroll=roll+ROLL_RATE*self.dtime*sign(newroll-roll) end
 		if newroll~=roll or newyaw~=yaw or newpitch~=pitch then self.object:set_rotation({x=newpitch,y=newyaw,z=newroll}) end
-		
+
 		-- workaround for broken attachments
 		if random()>0.95 then self.sail:set_attach(self.mast,'',{x=0,y=0,z=0},{x=0,y=0,z=0}) end
 	end
@@ -254,7 +250,7 @@ local paint_sail=function(self,puncher,ttime, toolcaps, dir, damage)
 					mobkit.hurt(self,toolcaps.damage_groups.fleshy - 1)
 					mobkit.make_sound(self,'hit')
 				end
-			end	
+			end
 		end
 	end
 end
@@ -274,7 +270,7 @@ minetest.register_entity('sailing_kit:boat',{
 	visual = "mesh",
 	mesh = "sailboat_hull.obj",
 	textures = {"default_wood.png"},
-	
+
 	water_drag = 0,		-- handled by object's own logic.
 	buoyancy = 0.45,
 	sounds={
@@ -323,18 +319,18 @@ initial_properties = {
 	textures = {"default_junglewood.png"},
 	},
 
-	
+
 on_activate = function(self,std)
 	self.sdata = minetest.deserialize(std) or {}
 	if self.sdata.remove then self.object:remove() end
 end,
-	
+
 get_staticdata=function(self)
-  	
+
   self.sdata.remove=true
   return minetest.serialize(self.sdata)
 end,
-	
+
 })
 
 minetest.register_entity('sailing_kit:sail',{
@@ -349,18 +345,18 @@ initial_properties = {
 --	textures = {"sail.png^[colorize:#FFE1B2:alpha"},
 	backface_culling = false,
 	},
-	
+
 on_activate = function(self,std)
 	self.sdata = minetest.deserialize(std) or {}
 	if self.sdata.remove then self.object:remove() end
 end,
-	
+
 get_staticdata=function(self)
-  	
+
   self.sdata.remove=true
   return minetest.serialize(self.sdata)
 end,
-	
+
 })
 
 --[[
@@ -372,18 +368,18 @@ initial_properties = {
 	mesh = "sailboat_seat.obj",
 	textures = {"default_wood.png"},
 	},
-	
+
 on_activate = function(self,std)
 	self.sdata = minetest.deserialize(std) or {}
 	if self.sdata.remove then self.object:remove() end
 end,
-	
+
 get_staticdata=function(self)
-  	
+
   self.sdata.remove=true
   return minetest.serialize(self.sdata)
 end,
-	
+
 })	--]]
 
 minetest.register_entity('sailing_kit:rudder',{
@@ -395,18 +391,18 @@ initial_properties = {
 	mesh = "rudder.obj",
 	textures = {"default_junglewood.png"},
 	},
-	
+
 on_activate = function(self,std)
 	self.sdata = minetest.deserialize(std) or {}
 	if self.sdata.remove then self.object:remove() end
 end,
-	
+
 get_staticdata=function(self)
-  	
+
   self.sdata.remove=true
   return minetest.serialize(self.sdata)
 end,
-	
+
 })
 
 minetest.register_on_chat_message(
