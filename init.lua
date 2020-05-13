@@ -1,5 +1,3 @@
---local abr = minetest.get_mapgen_setting('active_block_range')
-
 local pi = math.pi
 local random = math.random
 local min = math.min
@@ -39,9 +37,6 @@ local function minmax(v,m)
 end
 
 local boat_activation = function(self,std)
---	self.object:set_rotation({x=0,y=pi,z=0})
---	self.object:set_velocity({x=0,y=0,z=0.5})
-
 	self.sheet_limit=90
 	self.rudder_angle = 0
 	local pos = self.object:get_pos()
@@ -83,10 +78,9 @@ local sailstep = function(self)
 		return
 	end
 
---	local dtime = min(self.dtime,0.5)
 	local accel_y = self.object:get_acceleration().y
 	if self.mast then
-		local wind = get_wind()
+		local wind = get_wind(self.object:get_pos())
 		local vel = self.object:get_velocity()
 		wind = {x=wind.x - vel.x,y=0,z=wind.z-vel.z}
 		local rotation = self.object:get_rotation()
@@ -119,7 +113,6 @@ local sailstep = function(self)
 					if ctrl.up then
 						self.sheet_limit = min(self.sheet_limit+15*self.dtime,90)
 					elseif ctrl.down then
---						self.sheet_limit = max(self.sheet_limit-7*dtime,0)
 						self.sheet_limit = max(abs(sailrot.y)-15*self.dtime,0)
 					end
 				else	-- paddle
@@ -157,14 +150,10 @@ local sailstep = function(self)
 			self.rudder:set_attach(self.object,'',{x=0,y=0,z=-26},{x=0,y=self.rudder_angle,z=0})
 		end
 		if abs(self.rudder_angle)>5 then
---			newyaw = yaw+dtime*RUDDER_TURN_RATE*longit_speed*self.rudder_angle/30
---			newyaw = yaw+dtime*(1-1/(longit_speed*0.5+1))*self.rudder_angle/30*RUDDER_TURN_RATE
 			newyaw = yaw+self.dtime*(1-1/(abs(longit_speed)+1))*self.rudder_angle/30*RUDDER_TURN_RATE*sign(longit_speed)
 		end
 
 		if self.sail_set then
-			-- get sail direction
---			local _,_,spos,sailrot = self.mast:get_attach()
 			local syaw = yaw - rad(sailrot.y)
 			local sdir = minetest.yaw_to_dir(syaw)
 			local snormal = {x=sdir.z,y=0,z=-sdir.x}	-- rightside, dot is negative
@@ -186,7 +175,6 @@ local sailstep = function(self)
 
 						-- lateral pressure
 				local prsr = dot(forcevec,nhdir)
---				newroll = prsr*rad(ROLL_FACTOR)
 				newroll = (1-1/(prsr*ROLL_FACTOR+1)) * rad(90)	  -- poor man's arctan
 			else
 				newroll = 0
@@ -238,7 +226,6 @@ local paint_sail=function(self,puncher,ttime, toolcaps, dir, damage)
 			if indx then
 				local color = name:sub(indx+1)
 				local colstr = colors[color]
--- minetest.chat_send_all(color ..' '.. dump(colstr))
 				if colstr then
 					self.sail:set_properties({textures={"sail.png^[multiply:".. colstr}})
 					mobkit.remember(self,'sailcolor',colstr)
@@ -256,14 +243,6 @@ local paint_sail=function(self,puncher,ttime, toolcaps, dir, damage)
 end
 
 minetest.register_entity('sailing_kit:boat',{
---[[ initial_properties = {
-	physical = true,
-	collisionbox = {-0.6, -0.8, -0.6, 0.6, 0.9, 0.6},
-	visual = "mesh",
-	mesh = "sailboat_hull.obj",
-	textures = {"default_wood.png"},
-},	--]]
-
 	physical = true,
 	collisionbox = {-0.6, -0.8, -0.6, 0.6, 0.9, 0.6},
 	makes_footstep_sound = true,
@@ -279,7 +258,6 @@ minetest.register_entity('sailing_kit:boat',{
 
 on_rightclick=function(self, clicker)
 	if clicker:get_attach() == nil then
---		clicker:set_attach(self.object,'',{x=20,y=3,z=0},{x=0,y=0,z=0})
 		clicker:set_attach(self.object,'',{x=-3,y=2,z=-21},{x=0,y=0,z=0})
 		clicker:set_eye_offset({x=0,y=0,z=-20},{x=0,y=0,z=-5})
 		player_api.player_attached[clicker:get_player_name()] = true
@@ -342,7 +320,6 @@ initial_properties = {
 	visual = "mesh",
 	mesh = "sail01.obj",
 	textures = {"sail.png^[multiply:#FFEBCC"},
---	textures = {"sail.png^[colorize:#FFE1B2:alpha"},
 	backface_culling = false,
 	},
 
@@ -358,29 +335,6 @@ get_staticdata=function(self)
 end,
 
 })
-
---[[
-minetest.register_entity('sailing_kit:seat',{
-initial_properties = {
-	physical = true,
-	collisionbox = {-0.8, 0, -0.8, 0.8, 0.05, 0.8},
-	visual = "mesh",
-	mesh = "sailboat_seat.obj",
-	textures = {"default_wood.png"},
-	},
-
-on_activate = function(self,std)
-	self.sdata = minetest.deserialize(std) or {}
-	if self.sdata.remove then self.object:remove() end
-end,
-
-get_staticdata=function(self)
-
-  self.sdata.remove=true
-  return minetest.serialize(self.sdata)
-end,
-
-})	--]]
 
 minetest.register_entity('sailing_kit:rudder',{
 initial_properties = {
@@ -408,7 +362,6 @@ end,
 minetest.register_on_chat_message(
 	function(name, message)
 		if message == 'doit' then
---			local plyr = minetest.get_player_by_name('singleplayer')
 			local plyr = minetest.get_player_by_name(name)
 			local pos = plyr:get_pos()
 			pos.y = pos.y-0.01

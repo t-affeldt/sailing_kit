@@ -1,9 +1,9 @@
 local get_wind
 
 if minetest.get_modpath("climate_api") then
-	get_wind = function()
+	get_wind = function(pos)
 		local MULTIPLICATOR = 2.5
-		local wind = climate_api.environment.get_wind()
+		local wind = climate_api.environment.get_wind({x=0,y=0,z=0})
 		return vector.multiply(wind, MULTIPLICATOR)
 	end
 
